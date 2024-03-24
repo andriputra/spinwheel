@@ -23,7 +23,7 @@
         die("Connection Failed: " . $conn->connect_error);
     }
 
-    $sql = "SELECT id, ticket, prize FROM data_spin";
+    $sql = "SELECT id, ticket, prize, stopper_code FROM data_spin";
     $result = $conn  ->query($sql);
 
     if ($result->num_rows > 0) {
@@ -62,10 +62,8 @@
 <div class="modal" id="errorModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header">
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
       <div class="modal-body">
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         <div class="content-prize text-center">
             <i class="fa-solid fa-circle-exclamation"></i>
             <h2>Sorry</h2>
@@ -100,8 +98,7 @@ $(document).ready(function(){
         if (lastTicketTime) {
             var currentTime = Date.now();
             var timeDifference = currentTime - lastTicketTime;
-            // Mengatur waktu minimum antara putaran yang diizinkan (misalnya, 1 menit)
-            var minimumTimeDifference = 60000; // 1 menit dalam milidetik
+            var minimumTimeDifference = 60000; 
             if (timeDifference < minimumTimeDifference) {
                 showErrorModal("Sorry, your ticket cannot be used anymore. Please try again later.");
                 return;
@@ -114,26 +111,30 @@ $(document).ready(function(){
                 url: 'check_ticket.php',
                 data: {ticket: ticket},
                 success: function(response){
-                    var prize = response; 
+                    var responseData = JSON.parse(response);
+                    var prize = responseData.prize;  // Mengambil nilai dari kunci 'prize'
+                    var stopper_code = responseData.stopper_code;  // Mengambil nilai dari kunci 'stopper_code'
                     var stopPosition = calculateStopPosition(ticket);
                     setTimeout(function() {
                         stopWheel(stopPosition, prize);
-                    }, 3000); // Mengatur waktu penundaan menjadi 3000 ms (3 detik)
+                    }, 3000); 
+                },
+                error: function() {
+                    showErrorModal("Failed to check ticket. Please try again later."); // Tampilkan pesan jika terjadi kesalahan
                 }
             });
             localStorage.setItem('lastTicketTime', Date.now());
         });
     })
     
-    // Fungsi untuk memutar roda selama 3 detik
-    function spinWheel(callback, prize) {
-        var totalRotationTime = 3000; // Total waktu rotasi
+    function spinWheel(callback, prize, stopper_code) {
+        var totalRotationTime = 3000; 
         var startTime = Date.now();
-        var rotationSpeed = 5; // Kecepatan rotasi yang ditingkatkan
-        var initialRotation = Math.random() * 360; // Rotasi awal acak
-        var targetRotation = 360 * 5 + initialRotation; // Menambahkan rotasi awal ke target rotasi
+        var rotationSpeed = 5; 
+        var initialRotation = Math.random() * 360; 
+        var targetRotation = 360 * 5 + initialRotation + (stopper_code * (360 / 6)); // Menggunakan stopperCode untuk menentukan targetRotation
 
-        var currentRotation = initialRotation; // Simpan rotasi saat ini
+        var currentRotation = initialRotation; 
 
         var wheelInterval = setInterval(function() {
             var elapsedTime = Date.now() - startTime;
@@ -142,14 +143,15 @@ $(document).ready(function(){
                 callback(); 
             } else {
                 var progress = (elapsedTime / totalRotationTime); 
-                currentRotation += rotationSpeed; // Menambahkan rotasi dengan kecepatan tertentu
+                currentRotation += rotationSpeed; 
                 if (currentRotation >= targetRotation) {
-                    currentRotation = targetRotation; // Pastikan tidak melebihi target rotasi
+                    currentRotation = targetRotation; 
                 }
                 $('#container').css('transform', 'rotate(' + currentRotation + 'deg)');
             }
         }, rotationSpeed); 
     }
+
 
 
     function stopWheel(stopPosition, prize){
