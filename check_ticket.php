@@ -14,7 +14,7 @@ if(isset($_POST['ticket'])) {
         die("Connection Failed: " . $conn->connect_error);
     }
 
-    $sql = "SELECT prize, stopper_code FROM data_spin WHERE ticket = '$ticket'";
+    $sql = "SELECT ticket, prize, stopper_code FROM data_spin WHERE ticket = '$ticket'";
     $result = $conn->query($sql);
 
     if ($result) {
@@ -32,6 +32,7 @@ if(isset($_POST['ticket'])) {
             $error_message = "Ticket Not Valid";
             $response = array('error' => $error_message);
             echo json_encode($response);
+            exit; // Keluar dari script jika tiket tidak valid
         }
     } else {
         echo "Error: " . $conn->error;

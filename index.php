@@ -13,26 +13,35 @@
 <body>
 <div class="container" id="container">
     <?php
-    $host = 'localhost';
-    $username = 'root';
-    $password = '';
-    $database = 'spinwheel';
-    
-    $conn = new mysqli($host, $username, $password, $database);
-    if ($conn->connect_error) {
-        die("Connection Failed: " . $conn->connect_error);
-    }
+        $host = 'localhost';
+        $username = 'root';
+        $password = '';
+        $database = 'spinwheel';
 
-    $sql = "SELECT id, ticket, prize, stopper_code FROM data_spin";
-    $result = $conn  ->query($sql);
-
-    if ($result->num_rows > 0) {
-        while($row = $result->fetch_assoc()) {
-            echo '<div class="field-wheel">' . $row["prize"] . '</div>';
+        $conn = new mysqli($host, $username, $password, $database);
+        if ($conn->connect_error) {
+            die("Connection Failed: " . $conn->connect_error);
         }
-    } else {
-        echo "0 results";
-    }
+
+        $sql = "SELECT DISTINCT prize FROM data_spin";
+        $result = $conn->query($sql);
+
+        if ($result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                // Ambil satu hadiah untuk setiap nilai hadiah unik
+                $prize = $row["prize"];
+                // Lakukan query untuk mendapatkan satu tiket untuk setiap hadiah
+                $sql_ticket = "SELECT ticket FROM data_spin WHERE prize = '$prize' LIMIT 1";
+                $result_ticket = $conn->query($sql_ticket);
+                if ($result_ticket->num_rows > 0) {
+                    $row_ticket = $result_ticket->fetch_assoc();
+                    $ticket = $row_ticket["ticket"];
+                    echo '<div class="field-wheel">' . $prize . '</div>';
+                }
+            }
+        } else {
+            echo "0 results";
+        }
     ?>
 </div>
 <div class="stoper"></div>
@@ -48,11 +57,7 @@
         <div class="modal-content">
             <div class="modal-body">
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                <div class="content-prize text-center">
-                    <i class="fa-solid fa-trophy"></i>
-                    <h2>Congratulation</h2>
-                    <p id="prizeMessage"></p>
-                </div>
+                    <div class="content-prize text-center" id="prizeMessage"></div>
             </div>
         </div>
     </div>
@@ -105,27 +110,30 @@ $(document).ready(function(){
             }
         }
 
-        spinWheel(function(){
-            $.ajax({
-                type: 'POST',
-                url: 'check_ticket.php',
-                data: {ticket: ticket},
-                success: function(response){
-                    var responseData = JSON.parse(response);
-                    var prize = responseData.prize;  // Mengambil nilai dari kunci 'prize'
-                    var stopper_code = responseData.stopper_code;  // Mengambil nilai dari kunci 'stopper_code'
+        $.ajax({
+            type: 'POST',
+            url: 'check_ticket.php',
+            data: {ticket: ticket},
+            success: function(response){
+                var responseData = JSON.parse(response);
+                if (responseData.error) {
+                    showErrorModal(responseData.error); 
+                } else {
+                    var prize = responseData.prize;  
+                    var stopper_code = responseData.stopper_code;  
                     var stopPosition = calculateStopPosition(ticket);
-                    setTimeout(function() {
+                    spinWheel(function(){
                         stopWheel(stopPosition, prize);
-                    }, 3000); 
-                },
-                error: function() {
-                    showErrorModal("Failed to check ticket. Please try again later."); // Tampilkan pesan jika terjadi kesalahan
+                    }, prize, stopper_code); 
+
+                    localStorage.setItem('lastTicketTime', Date.now());
                 }
-            });
-            localStorage.setItem('lastTicketTime', Date.now());
+            },
+            error: function() {
+                showErrorModal("Failed to check ticket. Please try again later.");
+            }
         });
-    })
+    });
     
     function spinWheel(callback, prize, stopper_code) {
         var totalRotationTime = 3000; 
@@ -147,16 +155,25 @@ $(document).ready(function(){
                 if (currentRotation >= targetRotation) {
                     currentRotation = targetRotation; 
                 }
-                $('#container').css('transform', 'rotate(' + currentRotation + 'deg)');
+                
+                $('#container').css('transform', 'rotate(' + stopper_code + 'deg)');
             }
         }, rotationSpeed); 
     }
 
-
-
     function stopWheel(stopPosition, prize){
-        $('#prizeMessage').html('You won <strong>' + prize + '</strong> To claim your prize, please screen shoot this screen and send to admin');
+        var message;
+        if (prize.toLowerCase() === 'zonk') {
+            message = "<i class='fa-solid fa-bomb'></i><h2>ooooow!!</h2><p>Yaaah you get <strong> Zonk </strong>, please try again some time</p>";
+        } else {
+            message = "<i class='fa-solid fa-trophy'></i><h2>Congratulation</h2><p>You won <strong>" + prize + "</strong> To claim your prize, please screen shoot this screen and send to admin</p>";
+        }
+        $('#prizeMessage').html(message);
         $('#InfoWin').modal('show');
+
+        $('#InfoWin').on('hidden.bs.modal', function () {
+            location.reload(); 
+        });
     }
     
     function calculateStopPosition(ticket) {
